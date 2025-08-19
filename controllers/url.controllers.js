@@ -7,7 +7,7 @@ import { redisClient } from '../config/redisClient.js';
 import dotenv from 'dotenv';
 dotenv.config();
 
-const BASE_URL = `http://localhost:${process.env.PORT || 5000}/api/v1/url/resolve`;
+const BASE_URL = `https://shortify-backend-donb.onrender.com/api/v1/url/resolve`;
 
 export const shortenURL = asyncHandler(async (req, res) => {
     const { longUrl } = req.body;
