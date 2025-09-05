@@ -48,35 +48,58 @@ export const shortenURL = asyncHandler(async (req, res) => {
 
 export const resolveURL = asyncHandler(async (req, res) => {
     const { shortUrl } = req.params;
+    console.log("Resolving shortUrl:", shortUrl);
 
-    // Check cache
-    const cachedUrl = await redisClient.get(shortUrl);
-    if (cachedUrl) {
-        console.log("Fetched from cache");
+    try {
+        // Check cache
+        const cachedUrl = await redisClient.get(shortUrl);
+        console.log("Cache result:", cachedUrl);
 
-        // Asynchronous click count update
-        process.nextTick(async () => {
-            try {
-                await Url.updateOne({ shortUrl }, { $inc: { clicks: 1 } });
-            } catch (err) {
-                console.error("Failed to update click count:", err.message);
-            }
-        });
-        
-        return res.redirect(cachedUrl);
+        if (cachedUrl) {
+            console.log("Fetched from cache, redirecting to:", cachedUrl);
+
+            // Asynchronous click count update
+            process.nextTick(async () => {
+                try {
+                    await Url.updateOne({ shortUrl }, { $inc: { clicks: 1 } });
+                    console.log("Click count updated in background for:", shortUrl);
+                } catch (err) {
+                    console.error("Failed to update click count:", err.message);
+                }
+            });
+
+            return res.redirect(cachedUrl);
+        }
+
+        // Cache miss
+        console.log("Cache miss for:", shortUrl);
+        const url = await Url.findOne({ shortUrl });
+        console.log("DB result:", url);
+
+        if (!url) {
+            console.warn("Short URL not found:", shortUrl);
+            throw new ApiError(404, "Shortened URL not found");
+        }
+
+        url.clicks += 1;
+        await url.save();
+        console.log("Click count incremented for:", shortUrl);
+
+        // Cache the result
+        try {
+            await redisClient.setEx(shortUrl, 3600, url.longUrl);
+            console.log("Cached in Redis:", url.longUrl);
+        } catch (err) {
+            console.error("Failed to cache in Redis:", err.message);
+        }
+
+        console.log("Redirecting to:", url.longUrl);
+        return res.redirect(url.longUrl);
+
+    } catch (err) {
+        console.error("Resolve error:", err.message, err.stack);
+        throw new ApiError(500, "Internal server error while resolving URL");
     }
-    // Cache miss
-    const url = await Url.findOne({ shortUrl });
-    if (!url) {
-        throw new ApiError(404, "Shortened URL not found");
-    }
-
-    url.clicks += 1;
-    await url.save();
-    // Cache the result
-    await redisClient.setEx(shortUrl, 3600, url.longUrl);
-
-    return res.redirect(url.longUrl);
 });
 
 export const getAnalytics = asyncHandler(async (req, res) => {
