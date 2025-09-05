@@ -87,7 +87,7 @@ export const resolveURL = asyncHandler(async (req, res) => {
 
         // Cache the result
         try {
-            await redisClient.setEx(shortUrl, 3600, url.longUrl);
+            await redisClient.set(shortUrl, url.longUrl, { ex: 3600 })
             console.log("Cached in Redis:", url.longUrl);
         } catch (err) {
             console.error("Failed to cache in Redis:", err.message);
